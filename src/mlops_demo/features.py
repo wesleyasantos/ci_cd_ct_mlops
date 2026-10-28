@@ -13,7 +13,7 @@ def separar_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     faltando = [c for c in FEATURES + [ALVO] if c not in df.columns]
     if faltando:
         raise ValueError(f"Colunas ausentes: {faltando}")
-    X = df[FEATURES].copy()
+    X = df[FEATURES[:-1]].copy()
     y = df[ALVO].astype(int)
     return X, y
 
