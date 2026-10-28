@@ -1,0 +1,107 @@
+name: CT
+
+# Treinamento Contínuo: retreina o candidato e o submete ao portão de qualidade.
+# Gatilhos: agenda (relógio), evento (lote novo de dados ou params.yaml mudou) e manual.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # toda segunda-feira, 06h UTC (03h em Brasília)
+  push:
+    branches: [main]
+    paths:
+      - "data/raw/lotes/**"
+      - "params.yaml"
+  pull_request:
+    paths:
+      - "data/raw/lotes/**"
+      - "params.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ct-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # abrir a branch com o novo campeão
+  pull-requests: write # abrir o Pull Request de promoção
+
+env:
+  DVC_NO_ANALYTICS: "1"
+
+jobs:
+  retreinar:
+    name: Retreinar e avaliar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Instalar o projeto com DVC
+        run: pip install -e ".[ct]"
+
+      - name: Detectar drift (gatilho por evento)
+        id: drift
+        run: python -m mlops_demo.monitor
+
+      - name: Publicar o relatório de drift
+        run: cat reports/drift.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Decidir se o pipeline deve rodar
+        id: decisao
+        env:
+          EVENTO: ${{ github.event_name }}
+          DRIFT: ${{ steps.drift.outputs.retreinar }}
+        run: |
+          # agenda e execução manual sempre retreinam; push e PR só quando o drift dispara o gatilho
+          if [ "$EVENTO" = "schedule" ] || [ "$EVENTO" = "workflow_dispatch" ] || [ "$DRIFT" = "true" ]; then
+            echo "executar=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "executar=false" >> "$GITHUB_OUTPUT"
+            echo "Gatilho não disparado: nada a fazer." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Reproduzir o pipeline com DVC (preparar e treinar)
+        if: steps.decisao.outputs.executar == 'true'
+        run: dvc repro
+
+      - name: Portão de qualidade (candidato x campeão)
+        id: portao
+        if: steps.decisao.outputs.executar == 'true'
+        run: python -m mlops_demo.gate
+
+      - name: Publicar o resultado do portão
+        if: always() && steps.decisao.outputs.executar == 'true'
+        run: |
+          if [ -f reports/gate.md ]; then cat reports/gate.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Guardar o candidato e os relatórios
+        if: always() && steps.decisao.outputs.executar == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidato-e-relatorios
+          path: |
+            models/candidate/
+            reports/
+          if-no-files-found: ignore
+
+      - name: Promover o candidato (copia para models/champion)
+        if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request'
+        run: python -m mlops_demo.gate --promover
+
+      - name: Abrir Pull Request com o novo campeão
+        if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request'
+        # Exige em Settings > Actions > General: "Allow GitHub Actions to create pull requests".
+        # Um humano revisa e aprova a promoção: o CT propõe, o CD só publica o que foi aprovado.
+        continue-on-error: true
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ct/novo-campeao
+          add-paths: models/champion
+          commit-message: "ct: promove novo modelo campeão"
+          title: "ct: novo modelo campeão aprovado no portão de qualidade"
+          body-path: reports/gate.md
+          delete-branch: true

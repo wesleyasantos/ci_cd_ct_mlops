@@ -1,0 +1,7 @@
+# Hiperparâmetros do modelo. Mudou aqui? O CI treina de novo e confere os limiares.
+semente: 42
+
+modelo:
+  C: 1.0
+  max_iter: 1000
+  class_weight: balanced

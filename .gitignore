@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Gerados pelo pipeline (o campeão em models/champion/ É versionado)
+/data/processed
+/models/candidate
+/reports/
