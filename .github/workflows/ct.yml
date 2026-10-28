@@ -2,6 +2,12 @@ name: CT
 
 # Treinamento Contínuo: retreina o candidato e o submete ao portão de qualidade.
 # Gatilhos: agenda (relógio), evento (lote novo de dados ou params.yaml mudou) e manual.
+# Agenda e manual sempre retreinam. Em evento (push ou PR), o retreino só ocorre se houver drift.
+#
+# Dois modos de promoção quando o portão aprova (escolhidos pela variável PROMOCAO_AUTOMATICA):
+#   - padrão (variável ausente ou diferente de "true"): abre um Pull Request e uma pessoa aprova;
+#   - automático (PROMOCAO_AUTOMATICA = "true", só na main): publica o campeão na main, cria a tag
+#     da nova versão e dispara o CD. Nenhuma pessoa entra no caminho: o portão é a decisão.
 on:
   schedule:
     - cron: "0 6 * * 1" # toda segunda-feira, 06h UTC (03h em Brasília)
@@ -21,8 +27,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # abrir a branch com o novo campeão
+  contents: write # abrir a branch (modo PR) ou publicar na main e criar a tag (modo automático)
   pull-requests: write # abrir o Pull Request de promoção
+  actions: write # disparar o CD (modo automático)
 
 env:
   DVC_NO_ANALYTICS: "1"
@@ -31,6 +38,9 @@ jobs:
   retreinar:
     name: Retreinar e avaliar
     runs-on: ubuntu-latest
+    env:
+      # "true" só se a variável do repositório estiver ligada e a execução for na main
+      PROMOCAO_AUTOMATICA: ${{ vars.PROMOCAO_AUTOMATICA == 'true' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +103,7 @@ jobs:
         run: python -m mlops_demo.gate --promover
 
       - name: Abrir Pull Request com o novo campeão
-        if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request'
+        if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request' && env.PROMOCAO_AUTOMATICA != 'true'
         # Exige em Settings > Actions > General: "Allow GitHub Actions to create pull requests".
         # Um humano revisa e aprova a promoção: o CT propõe, o CD só publica o que foi aprovado.
         id: pr
@@ -106,6 +116,46 @@ jobs:
           title: "ct: novo modelo campeão aprovado no portão de qualidade"
           body-path: reports/gate.md
           delete-branch: true
+
+      - name: Publicar o novo campeão na main (promoção automática)
+        id: publicar
+        if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request' && env.PROMOCAO_AUTOMATICA == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/champion
+          if git diff --cached --quiet; then
+            echo "mudou=false" >> "$GITHUB_OUTPUT"
+            echo "O campeão não mudou. Nada a publicar." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "ct: promove novo modelo campeão (portão aprovado)"
+            git push origin HEAD:main
+            echo "mudou=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Criar a tag da nova versão e disparar o CD
+        if: steps.publicar.outputs.mudou == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --tags --quiet
+          ultima=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)
+          if [ -z "$ultima" ]; then
+            nova="v1.0.0"
+          else
+            IFS=. read -r maior menor _ <<< "${ultima#v}"
+            nova="v${maior}.$((menor + 1)).0"
+          fi
+          git tag -a "$nova" -m "novo modelo campeão promovido pelo CT"
+          git push origin "$nova"
+          # Eventos criados com o GITHUB_TOKEN não disparam outros workflows, exceto o disparo manual.
+          gh workflow run cd.yml --ref "$nova"
+          {
+            echo "### Promoção automática"
+            echo
+            echo "O candidato passou no portão, foi publicado na \`main\` e recebeu a tag \`$nova\`."
+            echo "O CD foi disparado para construir, testar e publicar a imagem."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Avisar se o PR não pôde ser aberto
         if: always() && steps.pr.outcome == 'failure'

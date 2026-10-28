@@ -12,7 +12,7 @@ A classe de interesse é a **maligna** (rótulo `0`), então medimos **recall** 
 | Letra | Workflow | Quando dispara | O que faz |
 |---|---|---|---|
 | **CI** | `.github/workflows/ci.yml` | push na `main` e todo Pull Request | lint, testes de código, dados, modelo e API |
-| **CT** | `.github/workflows/ct.yml` | agenda semanal, lote novo de dados, `params.yaml` alterado ou execução manual | detecta drift, retreina com DVC, aplica o portão de qualidade e propõe o novo campeão em um PR |
+| **CT** | `.github/workflows/ct.yml` | agenda semanal e execução manual (sempre retreinam); lote novo ou `params.yaml` alterado (retreinam só se houver drift) | detecta drift, retreina com DVC, aplica o portão de qualidade e propõe o novo campeão em um PR |
 | **CD** | `.github/workflows/cd.yml` | tag `v*.*.*` | roda o CI, constrói a imagem Docker, faz o teste de fumaça e publica no `ghcr.io` |
 
 ## Estrutura

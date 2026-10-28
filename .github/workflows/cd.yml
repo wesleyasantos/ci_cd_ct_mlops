@@ -2,6 +2,8 @@ name: CD
 
 # Entrega Contínua: ao criar uma tag de versão (v1.0.0), roda o CI, constrói a imagem Docker
 # com o modelo campeão, faz um teste de fumaça no container e publica no GitHub Container Registry.
+# A tag pode ser criada por uma pessoa ou pelo CT, no modo de promoção automática (o CT dispara este
+# workflow manualmente sobre a nova tag, porque eventos criados pelo GITHUB_TOKEN não disparam outros).
 on:
   push:
     tags: ["v*.*.*"]
