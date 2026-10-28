@@ -1,0 +1,3 @@
+# Arquivos que o DVC deve ignorar ao calcular hashes
+__pycache__
+*.pyc

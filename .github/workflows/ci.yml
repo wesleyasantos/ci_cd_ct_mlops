@@ -1,0 +1,77 @@
+name: CI
+
+# Integração Contínua: a cada push na main e a cada Pull Request, valida código, dados e modelo.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: # permite que o workflow de CD reutilize este CI
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  qualidade-de-codigo:
+    name: Lint e formatação (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Formatação
+        run: ruff format --check .
+
+  testes:
+    name: Testes (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Instalar o projeto e as ferramentas de teste
+        run: pip install -e ".[dev]"
+
+      - name: Validar os dados brutos
+        run: python -m mlops_demo.data validar
+
+      - name: Testes de código
+        run: pytest -m codigo --junitxml=reports/junit-codigo.xml
+
+      - name: Testes de dados
+        run: pytest -m dados --junitxml=reports/junit-dados.xml
+
+      - name: Testes de modelo (treina com o código e o params.yaml deste commit)
+        run: pytest -m modelo --junitxml=reports/junit-modelo.xml
+
+      - name: Testes de contrato da API
+        run: pytest -m api --junitxml=reports/junit-api.xml
+
+      - name: Guardar relatórios de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-teste-py${{ matrix.python }}
+          path: reports/junit-*.xml
+          if-no-files-found: ignore

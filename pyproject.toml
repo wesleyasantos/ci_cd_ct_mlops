@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlops-demo"
+version = "0.1.0"
+description = "Projeto de demonstração de CI/CD/CT para ML"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scikit-learn>=1.4",
+    "scipy>=1.11",
+    "joblib>=1.3",
+    "pyyaml>=6.0",
+    "fastapi>=0.110",
+    "pydantic>=2.5",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+# ferramentas de desenvolvimento: lint, testes e cliente HTTP do TestClient
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+# ferramentas do treinamento contínuo: pipeline versionado com DVC
+ct = [
+    "dvc>=3.50",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "codigo: testes de código (funções e pipeline)",
+    "dados: testes de dados (esquema, valores, vazamento)",
+    "modelo: testes de modelo (limiar, baseline, comportamento)",
+    "api: testes de contrato da API",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "demo"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

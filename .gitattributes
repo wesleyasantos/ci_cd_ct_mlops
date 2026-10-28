@@ -1,0 +1,3 @@
+# Fim de linha LF em todo o repositório (hashes do DVC e scripts iguais em qualquer sistema)
+* text=auto eol=lf
+*.joblib binary

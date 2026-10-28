@@ -1,0 +1,25 @@
+# Pipeline versionado com DVC. O CT executa "dvc repro" e o DVC só refaz o que mudou.
+stages:
+  preparar:
+    cmd: python -m mlops_demo.data preparar
+    deps:
+      - src/mlops_demo/data.py
+      - data/raw
+    outs:
+      - data/processed
+
+  treinar:
+    cmd: python -m mlops_demo.train
+    deps:
+      - src/mlops_demo/train.py
+      - src/mlops_demo/features.py
+      - src/mlops_demo/evaluate.py
+      - data/processed
+    params:
+      - semente
+      - modelo
+    outs:
+      - models/candidate
+    metrics:
+      - reports/candidate_metrics.json:
+          cache: false
