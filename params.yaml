@@ -1,3 +1,4 @@
+# gatilho do CT
 # Hiperparâmetros do modelo. Mudou aqui? O CI treina de novo e confere os limiares.
 semente: 42
 
