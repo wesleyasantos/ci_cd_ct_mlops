@@ -96,6 +96,7 @@ jobs:
         if: success() && steps.decisao.outputs.executar == 'true' && github.event_name != 'pull_request'
         # Exige em Settings > Actions > General: "Allow GitHub Actions to create pull requests".
         # Um humano revisa e aprova a promoção: o CT propõe, o CD só publica o que foi aprovado.
+        id: pr
         continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
@@ -105,3 +106,15 @@ jobs:
           title: "ct: novo modelo campeão aprovado no portão de qualidade"
           body-path: reports/gate.md
           delete-branch: true
+
+      - name: Avisar se o PR não pôde ser aberto
+        if: always() && steps.pr.outcome == 'failure'
+        run: |
+          echo "::warning::O PR do novo campeão não foi aberto. Veja Settings > Actions > General > Workflow permissions."
+          {
+            echo "### Atenção: o Pull Request de promoção não foi aberto"
+            echo
+            echo "O candidato foi aprovado e está na branch \`ct/novo-campeao\`."
+            echo "Ative **Allow GitHub Actions to create and approve pull requests** em Settings > Actions > General"
+            echo "ou abra o PR manualmente a partir da branch."
+          } >> "$GITHUB_STEP_SUMMARY"
