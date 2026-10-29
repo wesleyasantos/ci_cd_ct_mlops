@@ -102,13 +102,13 @@ tem Actions gratuito.
 **2. Configure o Git somente nesta pasta** (sem `--global`) e envie o projeto.
 
 ```bash
-git init -b main
+git init
 git config --local user.name  "Seu Nome"
 git config --local user.email "seu-email@exemplo.com"
 git config --local core.autocrlf false
 git add -A
-git commit -m "projeto inicial"
 git remote add origin https://github.com/SEU_USUARIO/NOME_DO_REPOSITORIO.git
+git commit -m "projeto inicial"
 git push -u origin main
 ```
 
