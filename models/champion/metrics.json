@@ -3,5 +3,5 @@
   "precisao_maligna": 0.9473684210526315,
   "acuracia": 0.97,
   "n_amostras": 100,
-  "origem": "base_treino.csv"
+  "origem": "treinamento contínuo (CT)"
 }
